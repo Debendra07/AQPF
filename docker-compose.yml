@@ -1,0 +1,66 @@
+services:
+
+  mongodb:
+    image: mongo:8
+    container_name: aqpf-mongodb
+
+    restart: unless-stopped
+
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+
+    ports:
+      - "27017:27017"
+
+    volumes:
+      - aqpf_mongodb_data:/data/db
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+
+  mongo-init:
+    image: mongo:8
+    container_name: aqpf-mongo-init
+
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+    restart: "no"
+
+    entrypoint:
+      - bash
+      - -c
+
+    command:
+      - >
+        mongosh --host mongodb:27017
+        --eval
+        "try {
+          rs.status();
+        } catch (e) {
+          rs.initiate({
+            _id: 'rs0',
+            members: [
+              {
+                _id: 0,
+                host: 'mongodb:27017'
+              }
+            ]
+          });
+        }"
+
+
+volumes:
+  aqpf_mongodb_data:
